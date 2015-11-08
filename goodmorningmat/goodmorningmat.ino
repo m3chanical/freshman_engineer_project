@@ -12,11 +12,26 @@
 #define VIOLET 0x5
 #define WHITE 0x7
 
+#define GaugePin A05
+
 
 Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 RTC_DS1307 rtc;
 
+unsigned long lastInput = 0; // Last button press, for timeout.
+
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+enum OperatingStates { DISPLAY_TIME = 0, SET_TIME, SET_ALARM };
+OperatingStates opState = DISPLAY_TIME;
+
+// Function prototypes, because I'm a C programmer:
+void AlarmState();
+void DisplayTime();
+void SetTime(); // on set time, display current time as well.
+void SetAlarm();
+uint8_t ReadButtons();
+
+
 
 void setup () {
 
@@ -40,56 +55,34 @@ void setup () {
 }
 
 void loop () {
+    while(ReadButtons() != 0) {} // wait for button release before changing states
     lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Current time: ");
-    DateTime now = rtc.now();
     
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(" (");
-    Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
-    Serial.print(") ");
-    Serial.print(now.hour());
-    Serial.print(':');
-    Serial.print(now.minute());
-    Serial.print(':');
-    Serial.print(now.second());
-    Serial.println();
+    switch(opState) {
+      case DISPLAY_TIME:
+        break;
+        
+      case SET_TIME:
+        break;
+        
+      case SET_ALARM:
+        break;
+    }
     
-    Serial.print(" since midnight 1/1/1970 = ");
-    Serial.print(now.unixtime());
-    Serial.print("s = ");
-    Serial.print(now.unixtime() / 86400L);
-    Serial.println("d");
-    
-    // calculate a date which is 7 days and 30 seconds into the future
-    DateTime future (now + TimeSpan(7,12,30,6));
-    
-    Serial.print(" now + 7d + 30s: ");
-    Serial.print(future.year(), DEC);
-    Serial.print('/');
-    Serial.print(future.month(), DEC);
-    Serial.print('/');
-    Serial.print(future.day(), DEC);
-    Serial.print(' ');
-    Serial.print(future.hour(), DEC);
-    Serial.print(':');
-    Serial.print(future.minute(), DEC);
-    Serial.print(':');
-    Serial.print(future.second(), DEC);
-    Serial.println();
-    
-    Serial.println();
-    
-    lcd.setCursor(0, 1);
-    lcd.print(now.hour());
-    lcd.print(':');
-    lcd.print(now.minute());
-    lcd.print(':');
-    lcd.print(now.second());
-    delay(1000);
+}
+
+void AlarmState() {
+}
+void DisplayTime() {
+}
+void SetTime() { // on set time, display current time as well.
+}
+void SetAlarm() {
+}
+uint8_t ReadButtons() {
+  uint8_t buttons = lcd.readButtons();
+  if (buttons != 0) {
+    lastInput = millis();
+  }
+  return buttons; 
 }
