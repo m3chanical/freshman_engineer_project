@@ -12,7 +12,13 @@
 #define VIOLET 0x5
 #define WHITE 0x7
 
-#define GaugePin A5
+#define LEFT 0x1E
+#define UP 0x1D
+#define RIGHT 0x1B
+#define DOWN 0x17
+#define TAB 0x0F
+
+#define GaugePin A0
 
 
 Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
@@ -44,8 +50,7 @@ uint8_t ReadButtons(void);
 
 
 void setup () {
-
-
+  
   Serial.begin(57600); // for debugging
   lcd.begin(16, 2);
   lcd.print("Hello, World!");
@@ -62,6 +67,7 @@ void setup () {
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
+  
 }
 
 void loop () {
@@ -69,22 +75,32 @@ void loop () {
     lcd.clear();
     
     float sensorVoltage = ReadGauge();
+    lcd.setCursor(0, 0);
+    lcd.print("Sensor Voltage: ");
+    lcd.setCursor(0, 1);
+    lcd.print(sensorVoltage);
 
     switch(opState) {
       case DISPLAY_TIME:
+        DisplayTime();
         break;
         
       case SET_TIME:
+        SetTime();
         break;
         
       case SET_ALARM:
+        SetAlarm();
         break;
     }
-    
+    delay(1000);
 }
 
 void AlarmState() {
-
+  if ((millis() - lastInput) > 10000) {
+         opState = DISPLAY_TIME;
+         return;
+  }
 }
 void DisplayTime() {
 
@@ -101,7 +117,7 @@ float ReadGauge() {
     int sensorValue = analogRead(GaugePin);
     Serial.print("The sensor value is: ");
     Serial.println(sensorValue);
-    float sensorVolts = sensorValue * (2.4 / 1023.0);
+    float sensorVolts = sensorValue * (2.5 / 512);
     Serial.print("The sensor voltage is: ");
     Serial.println(sensorVolts);
     
@@ -112,6 +128,19 @@ uint8_t ReadButtons() {
   uint8_t buttons = lcd.readButtons();
   if (buttons != 0) {
     lastInput = millis();
+  }
+  if (buttons == TAB) {
+    switch (opState) {
+      case DISPLAY_TIME:
+        opState = SET_TIME;
+        break;
+      case SET_TIME:
+        opState = SET_ALARM;
+        break;
+      case SET_ALARM:
+        opState = DISPLAY_TIME;
+        break;
+    }
   }
   return buttons; 
 }
