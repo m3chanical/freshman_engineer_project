@@ -12,31 +12,41 @@
 #define VIOLET 0x5
 #define WHITE 0x7
 
-#define GaugePin A05
+#define GaugePin A5
 
 
 Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 RTC_DS1307 rtc;
 
+// Strain Gauge/Inst Amp input pin:
+
+
 unsigned long lastInput = 0; // Last button press, for timeout.
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-enum OperatingStates { DISPLAY_TIME = 0, SET_TIME, SET_ALARM };
+
+// States for the state machine!
+enum OperatingStates { 
+        DISPLAY_TIME = 0, 
+        SET_TIME, 
+        SET_ALARM 
+      }; 
 OperatingStates opState = DISPLAY_TIME;
 
 // Function prototypes, because I'm a C programmer:
-void AlarmState();
-void DisplayTime();
-void SetTime(); // on set time, display current time as well.
-void SetAlarm();
-uint8_t ReadButtons();
+void AlarmState(void);
+void DisplayTime(void);
+void SetTime(void); // on set time, display current time as well.
+void SetAlarm(void);
+float ReadGauge(void);
+uint8_t ReadButtons(void);
 
 
 
 void setup () {
 
 
-  Serial.begin(57600);
+  Serial.begin(57600); // for debugging
   lcd.begin(16, 2);
   lcd.print("Hello, World!");
   if (! rtc.begin()) {
@@ -58,6 +68,8 @@ void loop () {
     while(ReadButtons() != 0) {} // wait for button release before changing states
     lcd.clear();
     
+    float sensorVoltage = ReadGauge();
+
     switch(opState) {
       case DISPLAY_TIME:
         break;
@@ -72,13 +84,30 @@ void loop () {
 }
 
 void AlarmState() {
+
 }
 void DisplayTime() {
+
 }
 void SetTime() { // on set time, display current time as well.
+  //Get Current time, enable update of minute... hold button for advance of 10min (?)
+
 }
 void SetAlarm() {
+
 }
+
+float ReadGauge() {
+    int sensorValue = analogRead(GaugePin);
+    Serial.print("The sensor value is: ");
+    Serial.println(sensorValue);
+    float sensorVolts = sensorValue * (2.4 / 1023.0);
+    Serial.print("The sensor voltage is: ");
+    Serial.println(sensorVolts);
+    
+    return sensorVolts;
+}
+
 uint8_t ReadButtons() {
   uint8_t buttons = lcd.readButtons();
   if (buttons != 0) {
