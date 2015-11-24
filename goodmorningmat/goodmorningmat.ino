@@ -3,7 +3,7 @@
 #include "RTClib.h"
 #include <utility/Adafruit_MCP23017.h>
 #include <Adafruit_RGBLCDShield.h>
-
+ 
 #define RED 0x1
 #define YELLOW 0x3
 #define GREEN 0x2
@@ -12,53 +12,42 @@
 #define VIOLET 0x5
 #define WHITE 0x7
 
-#define LEFT 0x1E
-#define UP 0x1D
-#define RIGHT 0x1B
-#define DOWN 0x17
-#define TAB 0x0F
-
+#define TRIGGERVOLTS 2.0
+ 
 #define GaugePin A0
-
-
+#define SpeakerPin 9
+ 
 Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 RTC_DS1307 rtc;
-
-// Strain Gauge/Inst Amp input pin:
-
-
+ 
 unsigned long lastInput = 0; // Last button press, for timeout.
+float sensorValue = 0;
+float sensorVolts = 0;
 
-char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-
-// States for the state machine!
-enum OperatingStates { 
-        DISPLAY_TIME = 0, 
-        SET_TIME, 
-        SET_ALARM 
-      }; 
-OperatingStates opState = DISPLAY_TIME;
-
+// methods hour() and minute() may not work if alarmTime is not initialized
+DateTime alarmTime = DateTime(2015, 1, 1, 0, 0); // 0 hrs 0 minutes
+ 
 // Function prototypes, because I'm a C programmer:
-void AlarmState(void);
-void DisplayTime(void);
-void SetTime(void); // on set time, display current time as well.
-void SetAlarm(void);
+void DisplayTime(DateTime oTime);
+DateTime SetTime(DateTime oTime, bool tabToSetAlarm = 1); // used for both alarm and current time
 float ReadGauge(void);
 uint8_t ReadButtons(void);
+void MakeNoise(void);
+ 
 
-
-
+ 
 void setup () {
-  
+ 
+ 
   Serial.begin(57600); // for debugging
   lcd.begin(16, 2);
   lcd.print("Hello, World!");
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   if (! rtc.begin()) {
     lcd.print("Couldn't find RTC");
     while (1);
   }
-  
+ 
   if (! rtc.isrunning()) {
     Serial.println("RTC is NOT running!");
     // following line sets the RTC to the date & time this sketch was compiled
@@ -67,80 +56,107 @@ void setup () {
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
-  
+}
+ 
+void loop () {
+
+    DisplayTime(rtc.now());
+    
+    // compare minutes and hours because operator== not overloaded for DateTime objects
+    if ( rtc.now().hour() == alarmTime.hour() && rtc.now().minute() == alarmTime.minute() )
+      MakeNoise(); // this function loops until load is detected
+      
+    if (ReadButtons() & BUTTON_SELECT)
+      rtc.adjust( SetTime(rtc.now()) );
+        // SetTime() loops until BUTTON_SELECT is pressed, or timeout 
+    delay(250);
+    ReadGauge();  
+}
+ 
+void DisplayTime(DateTime oTime) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  if(oTime.hour() < 10){
+   lcd.print(0); 
+  }
+  lcd.print( oTime.hour(), DEC );
+  lcd.print(":");
+  if(oTime.minute() < 10){
+   lcd.print(0); 
+  }
+  lcd.print( oTime.minute(), DEC );
+  lcd.print(":");
+  if(oTime.second() < 10){
+   lcd.print(0); 
+  }
+  lcd.print(oTime.second(), DEC);
 }
 
-void loop () {
-    while(ReadButtons() != 0) {} // wait for button release before changing states
-    lcd.clear();
-    
-    float sensorVoltage = ReadGauge();
-    lcd.setCursor(0, 0);
-    lcd.print("Sensor Voltage: ");
-    lcd.setCursor(0, 1);
-    lcd.print(sensorVoltage);
+DateTime SetTime(DateTime oTime, bool tabToSetAlarm) {
+  // Tab from hours to minutes with right button
 
-    switch(opState) {
-      case DISPLAY_TIME:
-        DisplayTime();
+  boolean bEditHours = 1; // 0 if editing minutes
+  boolean canChangeTime = true; 
+  unsigned long lastTimeChange;
+  while ( (millis() - lastInput) < 3000 ) { // timeout condition
+    DisplayTime(oTime);
+    if (millis() - lastTimeChange > 250){
+       canChangeTime = true;
+    }
+      switch ( ReadButtons() ) {
+      case BUTTON_RIGHT: // toggle editing hours/minutes
+        bEditHours = !bEditHours;
         break;
         
-      case SET_TIME:
-        SetTime();
+      case BUTTON_UP:
+        // hard-coding date for simplicity...
+        if ( bEditHours ) {
+          if(canChangeTime){
+            oTime = oTime + 3600; // operator+ adds seconds to DateTime object
+            canChangeTime = false; 
+            lastTimeChange = millis();
+          }
+        } else {
+          if(canChangeTime){
+            oTime = oTime + 60;
+            canChangeTime = false;
+            lastTimeChange = millis();
+          }
+        }
         break;
-        
-      case SET_ALARM:
-        SetAlarm();
+
+      case BUTTON_SELECT:
+        if (tabToSetAlarm)
+          alarmTime = SetTime(alarmTime, 0);
+        return oTime;
         break;
     }
-    delay(1000);
-}
 
-void AlarmState() {
-  if ((millis() - lastInput) > 10000) {
-         opState = DISPLAY_TIME;
-         return;
   }
+  return oTime;  
 }
-void DisplayTime() {
-
-}
-void SetTime() { // on set time, display current time as well.
-  //Get Current time, enable update of minute... hold button for advance of 10min (?)
-
-}
-void SetAlarm() {
-
-}
-
+ 
 float ReadGauge() {
-    int sensorValue = analogRead(GaugePin);
+    sensorValue = analogRead(GaugePin);
     Serial.print("The sensor value is: ");
     Serial.println(sensorValue);
-    float sensorVolts = sensorValue * (2.5 / 512);
+    sensorVolts = sensorValue * (4.76 / 1023.0);
     Serial.print("The sensor voltage is: ");
     Serial.println(sensorVolts);
-    
+   
     return sensorVolts;
 }
-
+ 
 uint8_t ReadButtons() {
   uint8_t buttons = lcd.readButtons();
   if (buttons != 0) {
     lastInput = millis();
   }
-  if (buttons == TAB) {
-    switch (opState) {
-      case DISPLAY_TIME:
-        opState = SET_TIME;
-        break;
-      case SET_TIME:
-        opState = SET_ALARM;
-        break;
-      case SET_ALARM:
-        opState = DISPLAY_TIME;
-        break;
-    }
-  }
-  return buttons; 
+  return buttons;
+}
+ 
+void MakeNoise(void) {
+    digitalWrite(SpeakerPin, HIGH);
+    while (ReadGauge() < TRIGGERVOLTS) {}
+    digitalWrite(SpeakerPin, LOW);  
 }
