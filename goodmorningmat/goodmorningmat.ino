@@ -50,8 +50,8 @@ void setup () {
   Serial.begin(57600); // Debug info here.
   lcd.begin(16, 2);
   pinMode(SpeakerPin, OUTPUT);
-  
-  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  alarmTime = rtc.now();
+  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   
   if (! rtc.begin()) {
     lcd.print("Couldn't find RTC");
@@ -67,7 +67,10 @@ void setup () {
  
 void loop () {
   now = rtc.now();
-  alarmTime = rtc.now();
+  
+  if ( CheckAlarm() ){
+    alarming = true; // this function loops until load is detected
+  }
   
   switch(acState) {
     case MAIN_DISPLAY:
@@ -81,8 +84,10 @@ void loop () {
       break;
   }
   
-  if ( CheckAlarm() ){
-    MakeNoise(); // this function loops until load is detected
+
+  
+  if( alarming) {
+    MakeNoise();
   }
 
   delay(250);
@@ -102,6 +107,7 @@ void MainDisplay(){
     lcd.print("Y");
   } else {
     lcd.print("N");
+    alarming = false;
   }
   
   if(buttons & BUTTON_RIGHT){
@@ -185,23 +191,70 @@ void SetTime() {
 }
 
 void SetAlarm(){
+  boolean bEditHours = 1; // 0 if editing minutes
+  boolean canChangeTime = true; 
+  unsigned long lastTimeChange;
+  DateTime newAlarm = alarmTime;
   lcd.setBacklight(BLUE);
   uint8_t buttons = ReadButtons();
-  //do cool shit;
   
-  
-  
-  if( (millis() - lastInput) > 3000 ){
-    acState = MAIN_DISPLAY;
-    lcd.clear();
-  }
-  if(buttons & BUTTON_RIGHT){
-    acState = MAIN_DISPLAY;
-    lcd.clear();
-  }
-  if(buttons & BUTTON_LEFT){
-    acState = SET_TIME;
-    lcd.clear();
+  while(true){
+    buttons = ReadButtons();
+    lcd.setCursor(0, 0);
+    lcd.print("Alarm: ");
+    DisplayTime(7, 0, alarmTime);
+    lcd.setCursor(0, 1);
+    lcd.print("New: ");
+    DisplayTime(5, 1, newAlarm);
+    
+    if (millis() - lastTimeChange > 250){
+     canChangeTime = true;
+    }
+     
+    if(buttons & BUTTON_SELECT){
+      bEditHours = !bEditHours;
+    }
+     
+    if(buttons & BUTTON_UP){
+      if ( bEditHours ) {
+        if(canChangeTime){
+          newAlarm = newAlarm + 3600; // operator+ adds seconds to DateTime object
+          canChangeTime = false; 
+          lastTimeChange = millis();
+        }
+      } else {
+        if(canChangeTime){
+          newAlarm = newAlarm + 60;
+          canChangeTime = false;
+          lastTimeChange = millis();
+        }
+      }
+     }
+     if(buttons & BUTTON_DOWN){
+       alarmTime = newAlarm;
+       acState = MAIN_DISPLAY;
+       lcd.clear();
+       lcd.setCursor(0,0);
+       lcd.print("NEW ALARM SET");
+       delay(500);
+       lcd.clear();
+       return;
+     }
+     if( (millis() - lastInput) > 3000 ){
+        acState = MAIN_DISPLAY;
+        lcd.clear();
+        return;
+     }
+     if(buttons & BUTTON_RIGHT){
+        acState = MAIN_DISPLAY;
+        lcd.clear();
+        return;
+     }
+     if(buttons & BUTTON_LEFT){
+        acState = SET_TIME;
+        lcd.clear();
+        return;
+     }
   }
 }
     
