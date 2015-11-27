@@ -51,8 +51,7 @@ void setup () {
   lcd.begin(16, 2);
   pinMode(SpeakerPin, OUTPUT);
   
-  //lcd.print("Hello, World!");
-  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   
   if (! rtc.begin()) {
     lcd.print("Couldn't find RTC");
@@ -91,12 +90,12 @@ void loop () {
 }
  
 void MainDisplay(){
-  
+  uint8_t buttons = ReadButtons();
   DisplayTime(0, 0, now);
   lcd.setBacklight(TEAL);
   lcd.setCursor(8, 1);
   lcd.print("Alarm: ");
-  if(ReadButtons() & BUTTON_UP){
+  if(buttons & BUTTON_UP){
     alarmOn = !alarmOn;
   }
   if(alarmOn){
@@ -105,8 +104,12 @@ void MainDisplay(){
     lcd.print("N");
   }
   
-  if(ReadButtons() & BUTTON_RIGHT){
+  if(buttons & BUTTON_RIGHT){
     acState = SET_TIME;
+    lcd.clear();
+  }
+  if(buttons & BUTTON_LEFT){
+    acState = SET_ALARM;
     lcd.clear();
   }
 }
@@ -119,23 +122,26 @@ void SetTime() {
   DateTime newTime = rtc.now();
   lcd.setBacklight(VIOLET);
 
-  lcd.setCursor(0, 0);
-  lcd.print("Current: ");
-  DisplayTime(9, 0, now);
-  lcd.setCursor(0, 1);
-  lcd.print("New: ");
-  DisplayTime(5, 1, newTime);
-  
-  if (millis() - lastTimeChange > 250){
+
+  uint8_t buttons = 0;
+  while(true){
+    buttons = ReadButtons();
+    lcd.setCursor(0, 0);
+    lcd.print("Cur: ");
+    DisplayTime(5, 0, rtc.now());
+    lcd.setCursor(0, 1);
+    lcd.print("New: ");
+    DisplayTime(5, 1, newTime);
+    
+    if (millis() - lastTimeChange > 250){
      canChangeTime = true;
-  }
-  
-  switch ( ReadButtons() ) {
-    case BUTTON_SELECT: // toggle editing hours/minutes
+    }
+     
+    if(buttons & BUTTON_SELECT){
       bEditHours = !bEditHours;
-      break;
-    case BUTTON_UP:
-      // hard-coding date for simplicity...
+    }
+     
+    if(buttons & BUTTON_UP){
       if ( bEditHours ) {
         if(canChangeTime){
           newTime = newTime + 3600; // operator+ adds seconds to DateTime object
@@ -149,33 +155,52 @@ void SetTime() {
           lastTimeChange = millis();
         }
       }
-      break;
-    case BUTTON_RIGHT:
-      acState = SET_ALARM;
-      lcd.clear();
-      break;
-    case BUTTON_DOWN:
-      rtc.adjust(newTime);
-      break;
+     }
+     if(buttons & BUTTON_DOWN){
+       rtc.adjust(newTime);
+       acState = MAIN_DISPLAY;
+       lcd.clear();
+       lcd.setCursor(0,0);
+       lcd.print("NEW TIME SET");
+       delay(500);
+       lcd.clear();
+       return;
+     }
+     if(buttons & BUTTON_RIGHT){
+       acState = SET_ALARM;
+       lcd.clear();
+       return;
+     }
+     if(buttons & BUTTON_LEFT){
+       acState = MAIN_DISPLAY;
+       lcd.clear();
+       return;
+     }
+     if( (millis() - lastInput) > 3000){
+       acState = MAIN_DISPLAY;
+       lcd.clear();
+       return;
+     }
   }
-  if( (millis() - lastInput) > 3000){
-    acState = MAIN_DISPLAY;
-    lcd.clear();
-  }
-
 }
 
 void SetAlarm(){
   lcd.setBacklight(BLUE);
+  uint8_t buttons = ReadButtons();
   //do cool shit;
   
   
   
   if( (millis() - lastInput) > 3000 ){
     acState = MAIN_DISPLAY;
+    lcd.clear();
   }
-  if(ReadButtons() & BUTTON_RIGHT){
+  if(buttons & BUTTON_RIGHT){
     acState = MAIN_DISPLAY;
+    lcd.clear();
+  }
+  if(buttons & BUTTON_LEFT){
+    acState = SET_TIME;
     lcd.clear();
   }
 }
