@@ -82,8 +82,7 @@ void loop () {
       break;
   }
   
-  // compare minutes and hours because operator '==' not overloaded for DateTime objects
-  if (alarming){
+  if ( CheckAlarm() ){
     MakeNoise(); // this function loops until load is detected
   }
 
@@ -130,46 +129,48 @@ void SetTime() {
   if (millis() - lastTimeChange > 250){
      canChangeTime = true;
   }
+  
   switch ( ReadButtons() ) {
-  case BUTTON_SELECT: // toggle editing hours/minutes
-    bEditHours = !bEditHours;
-    break;
-  case BUTTON_UP:
-    // hard-coding date for simplicity...
-    if ( bEditHours ) {
-      if(canChangeTime){
-        newTime = newTime + 3600; // operator+ adds seconds to DateTime object
-        canChangeTime = false; 
-        lastTimeChange = millis();
+    case BUTTON_SELECT: // toggle editing hours/minutes
+      bEditHours = !bEditHours;
+      break;
+    case BUTTON_UP:
+      // hard-coding date for simplicity...
+      if ( bEditHours ) {
+        if(canChangeTime){
+          newTime = newTime + 3600; // operator+ adds seconds to DateTime object
+          canChangeTime = false; 
+          lastTimeChange = millis();
+        }
+      } else {
+        if(canChangeTime){
+          newTime = newTime + 60;
+          canChangeTime = false;
+          lastTimeChange = millis();
+        }
       }
-    } else {
-      if(canChangeTime){
-        newTime = newTime + 60;
-        canChangeTime = false;
-        lastTimeChange = millis();
-      }
-    }
-    break;
-  case BUTTON_RIGHT:
-    acState = SET_ALARM;
-    lcd.clear();
-    break;
-  case BUTTON_DOWN:
-    rtc.adjust(newTime);
-    break;
+      break;
+    case BUTTON_RIGHT:
+      acState = SET_ALARM;
+      lcd.clear();
+      break;
+    case BUTTON_DOWN:
+      rtc.adjust(newTime);
+      break;
   }
   if( (millis() - lastInput) > 3000){
     acState = MAIN_DISPLAY;
     lcd.clear();
   }
 
-  alarming = CheckAlarm;
 }
 
 void SetAlarm(){
-  
   lcd.setBacklight(BLUE);
   //do cool shit;
+  
+  
+  
   if( (millis() - lastInput) > 3000 ){
     acState = MAIN_DISPLAY;
   }
@@ -197,10 +198,7 @@ void DisplayTime(int column, int line, DateTime time) {
    lcd.print(0); 
   }
   lcd.print(time.second(), DEC);
-  
-  alarming = CheckAlarm();
-  
-  
+
 }
  
 float ReadGauge() {
