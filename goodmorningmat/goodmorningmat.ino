@@ -23,32 +23,37 @@ RTC_DS1307 rtc;
 unsigned long lastInput = 0; // Last button press, for timeout.
 float sensorValue = 0;
 float sensorVolts = 0;
+bool alarming = false;
+bool alarmOn = false;
+// Methods hour() and minute() may not work if alarmTime is not initialized
+DateTime alarmTime; // 0 hrs 0 minutes
+DateTime now;
 
-int length = 15; // the number of notes
-char notes[] = "ccggaagffeeddc "; // a space represents a rest
-int beats[] = { 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 4 };
-int tempo = 300;
-
-// methods hour() and minute() may not work if alarmTime is not initialized
-DateTime alarmTime = DateTime(2015, 1, 1, 0, 0); // 0 hrs 0 minutes
+// States for state machine: 
+enum alarmClockStates {MAIN_DISPLAY = 0, SET_TIME, SET_ALARM};
+alarmClockStates acState = MAIN_DISPLAY;
  
-// Function prototypes, because I'm a C programmer:
-void DisplayTime(DateTime oTime);
-DateTime SetTime(DateTime oTime, bool tabToSetAlarm = 1); // used for both alarm and current time
+// Function prototypes
+void MainDisplay();
+void SetTime(); 
+void SetAlarm();
+void DisplayTime(int, int, DateTime);
 float ReadGauge(void);
 uint8_t ReadButtons(void);
 void MakeNoise(void);
+bool CheckAlarm(void);
  
 
  
 void setup () {
- 
- 
-  Serial.begin(57600); // for debugging
+  
+  Serial.begin(57600); // Debug info here.
   lcd.begin(16, 2);
   pinMode(SpeakerPin, OUTPUT);
+  
   //lcd.print("Hello, World!");
   //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  
   if (! rtc.begin()) {
     lcd.print("Couldn't find RTC");
     while (1);
@@ -56,100 +61,146 @@ void setup () {
  
   if (! rtc.isrunning()) {
     Serial.println("RTC is NOT running!");
-    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    
   }
   
 }
  
 void loop () {
+  now = rtc.now();
+  alarmTime = rtc.now();
+  
+  switch(acState) {
+    case MAIN_DISPLAY:
+      MainDisplay();
+      break;
+    case SET_TIME:
+      SetTime();
+      break;
+    case SET_ALARM:
+      SetAlarm();
+      break;
+  }
+  
+  // compare minutes and hours because operator '==' not overloaded for DateTime objects
+  if (alarming){
+    MakeNoise(); // this function loops until load is detected
+  }
 
-    DisplayTime(rtc.now());
-    
-    // compare minutes and hours because operator== not overloaded for DateTime objects
-    if ( rtc.now().hour() == alarmTime.hour() && rtc.now().minute() == alarmTime.minute() )
-      //MakeNoise(); // this function loops until load is detected
-      
-    if (ReadButtons() & BUTTON_SELECT)
-      rtc.adjust( SetTime(rtc.now()) );
-        // SetTime() loops until BUTTON_SELECT is pressed, or timeout 
-    delay(250);
-    ReadGauge();  
-    
-    if (ReadButtons() & BUTTON_LEFT){
-      for (int i = 0; i < length; i++) {
-        if (notes[i] == ' ') {
-          delay(beats[i] * tempo); // rest
-        } else {
-          playNote(notes[i], beats[i] * tempo);
-        }
-        
-        // pause between notes
-        delay(tempo / 2); 
-      }
-    }
+  delay(250);
+  ReadGauge();  
 }
  
-void DisplayTime(DateTime oTime) {
-  //lcd.clear();
-  lcd.setCursor(0, 0);
-  if(oTime.hour() < 10){
-   lcd.print(0); 
+void MainDisplay(){
+  
+  DisplayTime(0, 0, now);
+  lcd.setBacklight(TEAL);
+  lcd.setCursor(8, 1);
+  lcd.print("Alarm: ");
+  if(ReadButtons() & BUTTON_UP){
+    alarmOn = !alarmOn;
   }
-  lcd.print( oTime.hour(), DEC );
-  lcd.print(":");
-  if(oTime.minute() < 10){
-   lcd.print(0); 
+  if(alarmOn){
+    lcd.print("Y");
+  } else {
+    lcd.print("N");
   }
-  lcd.print( oTime.minute(), DEC );
-  lcd.print(":");
-  if(oTime.second() < 10){
-   lcd.print(0); 
+  
+  if(ReadButtons() & BUTTON_RIGHT){
+    acState = SET_TIME;
+    lcd.clear();
   }
-  lcd.print(oTime.second(), DEC);
 }
 
-DateTime SetTime(DateTime oTime, bool tabToSetAlarm) {
-  // Tab from hours to minutes with right button
-
+void SetTime() {
+  
   boolean bEditHours = 1; // 0 if editing minutes
   boolean canChangeTime = true; 
   unsigned long lastTimeChange;
-  while ( (millis() - lastInput) < 3000 ) { // timeout condition
-    DisplayTime(oTime);
-    if (millis() - lastTimeChange > 250){
-       canChangeTime = true;
-    }
-      switch ( ReadButtons() ) {
-      case BUTTON_RIGHT: // toggle editing hours/minutes
-        bEditHours = !bEditHours;
-        break;
-        
-      case BUTTON_UP:
-        // hard-coding date for simplicity...
-        if ( bEditHours ) {
-          if(canChangeTime){
-            oTime = oTime + 3600; // operator+ adds seconds to DateTime object
-            canChangeTime = false; 
-            lastTimeChange = millis();
-          }
-        } else {
-          if(canChangeTime){
-            oTime = oTime + 60;
-            canChangeTime = false;
-            lastTimeChange = millis();
-          }
-        }
-        break;
+  DateTime newTime = rtc.now();
+  lcd.setBacklight(VIOLET);
 
-      case BUTTON_SELECT:
-        if (tabToSetAlarm)
-          alarmTime = SetTime(alarmTime, 0);
-        return oTime;
-        break;
-    }
-
+  lcd.setCursor(0, 0);
+  lcd.print("Current: ");
+  DisplayTime(9, 0, now);
+  lcd.setCursor(0, 1);
+  lcd.print("New: ");
+  DisplayTime(5, 1, newTime);
+  
+  if (millis() - lastTimeChange > 250){
+     canChangeTime = true;
   }
-  return oTime;  
+  switch ( ReadButtons() ) {
+  case BUTTON_SELECT: // toggle editing hours/minutes
+    bEditHours = !bEditHours;
+    break;
+  case BUTTON_UP:
+    // hard-coding date for simplicity...
+    if ( bEditHours ) {
+      if(canChangeTime){
+        newTime = newTime + 3600; // operator+ adds seconds to DateTime object
+        canChangeTime = false; 
+        lastTimeChange = millis();
+      }
+    } else {
+      if(canChangeTime){
+        newTime = newTime + 60;
+        canChangeTime = false;
+        lastTimeChange = millis();
+      }
+    }
+    break;
+  case BUTTON_RIGHT:
+    acState = SET_ALARM;
+    lcd.clear();
+    break;
+  case BUTTON_DOWN:
+    rtc.adjust(newTime);
+    break;
+  }
+  if( (millis() - lastInput) > 3000){
+    acState = MAIN_DISPLAY;
+    lcd.clear();
+  }
+
+  alarming = CheckAlarm;
+}
+
+void SetAlarm(){
+  
+  lcd.setBacklight(BLUE);
+  //do cool shit;
+  if( (millis() - lastInput) > 3000 ){
+    acState = MAIN_DISPLAY;
+  }
+  if(ReadButtons() & BUTTON_RIGHT){
+    acState = MAIN_DISPLAY;
+    lcd.clear();
+  }
+}
+    
+    
+void DisplayTime(int column, int line, DateTime time) {
+  
+  lcd.setCursor(column, line);
+  if(time.hour() < 10){
+   lcd.print(0); 
+  }
+  lcd.print(time.hour(), DEC );
+  lcd.print(":");
+  if(time.minute() < 10){
+   lcd.print(0); 
+  }
+  lcd.print(time.minute(), DEC );
+  lcd.print(":");
+  if(time.second() < 10){
+   lcd.print(0); 
+  }
+  lcd.print(time.second(), DEC);
+  
+  alarming = CheckAlarm();
+  
+  
 }
  
 float ReadGauge() {
@@ -170,25 +221,18 @@ uint8_t ReadButtons() {
   }
   return buttons;
 }
+
+bool CheckAlarm(){
+  Serial.print("Alarming: ");
+  Serial.println(alarmOn && (rtc.now().hour() == alarmTime.hour() && rtc.now().minute() == alarmTime.minute()));
+  return alarmOn && (rtc.now().hour() == alarmTime.hour() && rtc.now().minute() == alarmTime.minute());
+}
  
+void MakeNoise(){
+  lcd.setBacklight(RED);
+  delay(100);
+  lcd.setBacklight(GREEN);
+  //make noise.
 
-void playTone(int tone, int duration) {
-  for (long i = 0; i < duration * 1000L; i += tone * 2) {
-    digitalWrite(SpeakerPin, HIGH);
-    delayMicroseconds(tone);
-    digitalWrite(SpeakerPin, LOW);
-    delayMicroseconds(tone);
-  }
 }
 
-void playNote(char note, int duration) {
-  char names[] = { 'c', 'd', 'e', 'f', 'g', 'a', 'b', 'C' };
-  int tones[] = { 1915, 1700, 1519, 1432, 1275, 1136, 1014, 956 };
-  
-  // play the tone corresponding to the note name
-  for (int i = 0; i < 8; i++) {
-    if (names[i] == note) {
-      playTone(tones[i], duration);
-    }
-  }
-}
