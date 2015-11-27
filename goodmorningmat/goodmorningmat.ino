@@ -24,6 +24,11 @@ unsigned long lastInput = 0; // Last button press, for timeout.
 float sensorValue = 0;
 float sensorVolts = 0;
 
+int length = 15; // the number of notes
+char notes[] = "ccggaagffeeddc "; // a space represents a rest
+int beats[] = { 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 4 };
+int tempo = 300;
+
 // methods hour() and minute() may not work if alarmTime is not initialized
 DateTime alarmTime = DateTime(2015, 1, 1, 0, 0); // 0 hrs 0 minutes
  
@@ -41,8 +46,9 @@ void setup () {
  
   Serial.begin(57600); // for debugging
   lcd.begin(16, 2);
-  lcd.print("Hello, World!");
-  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  pinMode(SpeakerPin, OUTPUT);
+  //lcd.print("Hello, World!");
+  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   if (! rtc.begin()) {
     lcd.print("Couldn't find RTC");
     while (1);
@@ -50,12 +56,9 @@ void setup () {
  
   if (! rtc.isrunning()) {
     Serial.println("RTC is NOT running!");
-    // following line sets the RTC to the date & time this sketch was compiled
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    // This line sets the RTC with an explicit date & time, for example to set
-    // January 21, 2014 at 3am you would call:
-    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+    //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
+  
 }
  
 void loop () {
@@ -64,17 +67,30 @@ void loop () {
     
     // compare minutes and hours because operator== not overloaded for DateTime objects
     if ( rtc.now().hour() == alarmTime.hour() && rtc.now().minute() == alarmTime.minute() )
-      MakeNoise(); // this function loops until load is detected
+      //MakeNoise(); // this function loops until load is detected
       
     if (ReadButtons() & BUTTON_SELECT)
       rtc.adjust( SetTime(rtc.now()) );
         // SetTime() loops until BUTTON_SELECT is pressed, or timeout 
     delay(250);
     ReadGauge();  
+    
+    if (ReadButtons() & BUTTON_LEFT){
+      for (int i = 0; i < length; i++) {
+        if (notes[i] == ' ') {
+          delay(beats[i] * tempo); // rest
+        } else {
+          playNote(notes[i], beats[i] * tempo);
+        }
+        
+        // pause between notes
+        delay(tempo / 2); 
+      }
+    }
 }
  
 void DisplayTime(DateTime oTime) {
-  lcd.clear();
+  //lcd.clear();
   lcd.setCursor(0, 0);
   if(oTime.hour() < 10){
    lcd.print(0); 
@@ -155,8 +171,24 @@ uint8_t ReadButtons() {
   return buttons;
 }
  
-void MakeNoise(void) {
+
+void playTone(int tone, int duration) {
+  for (long i = 0; i < duration * 1000L; i += tone * 2) {
     digitalWrite(SpeakerPin, HIGH);
-    while (ReadGauge() < TRIGGERVOLTS) {}
-    digitalWrite(SpeakerPin, LOW);  
+    delayMicroseconds(tone);
+    digitalWrite(SpeakerPin, LOW);
+    delayMicroseconds(tone);
+  }
+}
+
+void playNote(char note, int duration) {
+  char names[] = { 'c', 'd', 'e', 'f', 'g', 'a', 'b', 'C' };
+  int tones[] = { 1915, 1700, 1519, 1432, 1275, 1136, 1014, 956 };
+  
+  // play the tone corresponding to the note name
+  for (int i = 0; i < 8; i++) {
+    if (names[i] == note) {
+      playTone(tones[i], duration);
+    }
+  }
 }
