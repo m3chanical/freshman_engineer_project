@@ -12,7 +12,7 @@
 #define VIOLET 0x5
 #define WHITE 0x7
 
-#define TRIGGERVOLTS 2.0
+#define TRIGGERVOLTS 0.2
  
 #define GaugePin A0
 #define SpeakerPin 9
@@ -21,9 +21,9 @@ Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 RTC_DS1307 rtc;
  
 int length = 15; // the number of notes
-char notes[] = "ccggaagffeeddc "; // a space represents a rest
-int beats[] = { 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 4 };
-int tempo = 300; 
+char notes[] = "ccggaagffeeddc"; // a space represents a rest
+int beats[] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+int tempo = 75; 
 
 unsigned long lastInput = 0; // Last button press, for timeout.
 float sensorValue = 0;
@@ -72,8 +72,9 @@ void setup () {
  
 void loop () {
   now = rtc.now();
+  ReadGauge();  
   
-  if(!alarming){
+  if( !alarming ){
     alarming = CheckAlarm(); // Checks the current time (hours/minutes) against the alarm time, sets alarming to true if they're equivalent.
   }
   
@@ -94,15 +95,20 @@ void loop () {
   if( alarming ) {
     MakeNoise();
   }
+  if ( ReadGauge() >= TRIGGERVOLTS ) {
+    alarming = 0;
+    alarmOn = false;
+  }
 
-  delay(250);
-  ReadGauge();  
+  //delay(250);
 }
  
 void MainDisplay(){
   uint8_t buttons = ReadButtons();
   DisplayTime(0, 0, now);
   lcd.setBacklight(TEAL);
+  lcd.setCursor(0, 1);
+  lcd.print(sensorVolts);
   lcd.setCursor(8, 1);
   lcd.print("Alarm: ");
   if(buttons & BUTTON_UP){
@@ -323,9 +329,13 @@ bool CheckAlarm(){
  
 void MakeNoise(){
   lcd.setBacklight(RED);
-  delay(100);
+  //delay(100);
   lcd.setBacklight(GREEN);
+  
   //make noise.
+  unsigned i = (millis() / 500) % length; // get index based on current time
+  playNote(notes[i], beats[i] * tempo);
+  
 
 }
 
