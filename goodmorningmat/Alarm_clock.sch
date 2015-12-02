@@ -4034,6 +4034,9 @@ SMT- SWCH-08247</description>
 <sheet>
 <description>Alarm Clock schematic for freshman design</description>
 <plain>
+<text x="139.7" y="-2.54" size="1.778" layer="91">Carl J. Anderson</text>
+<text x="139.7" y="-5.08" size="1.778" layer="91">
+Freshman Engineering Design</text>
 </plain>
 <instances>
 <instance part="JP1" gate="G$1" x="20.32" y="81.28"/>
@@ -4599,4 +4602,10 @@ SMT- SWCH-08247</description>
 </errors>
 </schematic>
 </drawing>
+<compatibility>
+<note version="6.3" minversion="6.2.2" severity="warning">
+Since Version 6.2.2 text objects can contain more than one line,
+which will not be processed correctly with this version.
+</note>
+</compatibility>
 </eagle>
