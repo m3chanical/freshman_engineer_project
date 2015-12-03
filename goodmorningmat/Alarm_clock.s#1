@@ -4503,13 +4503,6 @@ Standard 5-pin 0.1" header. Use with straight break away headers (SKU : PRT-0011
 <text x="139.7" y="-2.54" size="1.778" layer="91">Carl J. Anderson</text>
 <text x="139.7" y="-5.08" size="1.778" layer="91">
 Freshman Engineering Design</text>
-<text x="-20.32" y="137.16" size="5.08" layer="91">Alarm Noise</text>
-<text x="81.28" y="121.92" size="5.08" layer="91">Pressure Sensor</text>
-<text x="38.1" y="50.8" size="5.08" layer="91">Arduino</text>
-<text x="12.7" y="-10.16" size="3.81" layer="91">Pressure Sensor
-Amplifier</text>
-<text x="162.56" y="124.46" size="4.318" layer="91">Alarm Clock Display
-w/ Buttons</text>
 </plain>
 <instances>
 <instance part="JP1" gate="G$1" x="20.32" y="81.28"/>
